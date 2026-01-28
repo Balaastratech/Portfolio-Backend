@@ -1,0 +1,17 @@
+# Backend - Node.js
+node_modules/
+dist/
+.env
+*.log
+
+# Uploads directory (keep structure, ignore files)
+uploads/*
+!uploads/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
