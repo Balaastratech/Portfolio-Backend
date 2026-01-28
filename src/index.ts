@@ -109,7 +109,13 @@ async function start() {
 }
 
 // Only start the server if we are not in a serverless environment (Vercel)
-if (require.main === module) {
+// Vercel sets NODE_ENV=production but does not run the script directly via node/tsx
+// We can check if the file is being run directly
+import { fileURLToPath } from 'url';
+
+const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
     start();
 }
 
