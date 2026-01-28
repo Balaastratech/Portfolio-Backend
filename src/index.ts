@@ -26,7 +26,7 @@ app.use(globalLimiter);
 // Middleware
 app.use(cors({
     origin: [
-        env.CORS_ORIGIN,
+        ...(env.CORS_ORIGIN ? env.CORS_ORIGIN.split(',') : []),
         'http://localhost:5173',
         'http://localhost:8080',
         'http://localhost:8081',
