@@ -5,6 +5,7 @@ import { testConnection } from './config/database.js';
 import authRoutes from './routes/auth.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import mediaRoutes from './routes/media.routes.js';
 import path from 'path';
 import { securityHeaders, globalLimiter, authLimiter } from './middleware/security.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -55,6 +56,7 @@ app.get('/api', (_req, res) => {
         endpoints: {
             public: '/api/public/*',
             admin: '/api/admin/*',
+            media: '/api/admin/media/*',
         },
     });
 });
@@ -64,6 +66,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Routes
 app.use('/api/admin/auth', authLimiter, authRoutes);
+app.use('/api/admin/media', mediaRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/public', publicRoutes);
 
