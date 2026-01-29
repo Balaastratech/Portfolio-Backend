@@ -226,17 +226,21 @@ export async function submitContactForm(req: Request, res: Response): Promise<vo
             isArchived: false,
         }).returning();
 
-        // Send email notification asynchronously
-        // We don't wait for it to complete to return response to user
-        sendContactFormEmail({
-            name,
-            email,
-            phone,
-            projectType,
-            budget,
-            timeline,
-            message
-        }).catch(err => console.error('Failed to send contact email notification:', err));
+        // Send email notification (Must await in Vercel/Serverless to ensure execution)
+        try {
+            await sendContactFormEmail({
+                name,
+                email,
+                phone,
+                projectType,
+                budget,
+                timeline,
+                message
+            });
+        } catch (emailError) {
+            console.error('Failed to send contact email notification:', emailError);
+            // We still return success to the user because the DB save was successful
+        }
 
         res.status(201).json({
             message: 'Message received successfully. We will get back to you shortly.',

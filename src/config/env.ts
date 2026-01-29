@@ -34,7 +34,7 @@ export const env = {
 
     // Email (Resend)
     RESEND_API_KEY: process.env.RESEND_API_KEY || '',
-    FROM_EMAIL: process.env.FROM_EMAIL || 'noreply@balaastra.tech',
+    FROM_EMAIL: process.env.FROM_EMAIL || 'onboarding@resend.dev',
     ADMIN_EMAIL: process.env.ADMIN_EMAIL || 'balaastratech@gmail.com',
     ADMIN_PANEL_URL: process.env.ADMIN_PANEL_URL || 'http://localhost:5174',
 
