@@ -16,7 +16,7 @@ export const errorHandler = (err: Error, req: Request, res: Response, _next: Nex
         if (err.code === 'LIMIT_FILE_SIZE') {
             res.status(400).json({
                 error: 'File Too Large',
-                message: 'File size exceeds the allowed limit of 25MB. Please upload a smaller image.',
+                message: 'File size exceeds the allowed limit of 4.5MB. Please upload a smaller image.',
             });
             return;
         }

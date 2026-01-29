@@ -11,16 +11,43 @@ cloudinary.config({
 });
 
 // Configure Multer for memory storage
+// Configure Multer for memory storage
 const storage = multer.memoryStorage();
 export const uploadMiddleware = multer({
     storage,
     limits: {
-        fileSize: 25 * 1024 * 1024, // 25MB limit
+        fileSize: 100 * 1024 * 1024, // 100MB limit (Legacy/Local use only)
     },
 }).single('file');
 
 /**
- * Upload a file to Cloudinary
+ * Generate signature for client-side upload
+ */
+export async function getUploadSignature(req: Request, res: Response): Promise<void> {
+    try {
+        const timestamp = Math.round((new Date).getTime() / 1000);
+        const folder = 'balaastra-portfolio';
+
+        const signature = cloudinary.utils.api_sign_request({
+            timestamp,
+            folder,
+        }, env.CLOUDINARY_API_SECRET || '');
+
+        res.json({
+            cloudName: env.CLOUDINARY_CLOUD_NAME,
+            apiKey: env.CLOUDINARY_API_KEY,
+            signature,
+            timestamp,
+            folder,
+        });
+    } catch (error) {
+        console.error('Signature generation error:', error);
+        res.status(500).json({ error: 'Failed to generate upload signature' });
+    }
+}
+
+/**
+ * Upload a file to Cloudinary (Legacy/Server-side backup)
  */
 export async function uploadFile(req: Request, res: Response): Promise<void> {
     try {
