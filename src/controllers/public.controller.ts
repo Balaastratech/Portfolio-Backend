@@ -14,6 +14,7 @@ import {
     aboutItems,
 } from '../db/schema.js';
 import { desc, eq, asc, and } from 'drizzle-orm';
+import { sendContactFormEmail } from '../services/email.js';
 
 /**
  * GET /api/public/projects
@@ -212,7 +213,7 @@ export async function submitContactForm(req: Request, res: Response): Promise<vo
     try {
         const { name, email, projectType, budget, message, phone, timeline } = req.body;
 
-        await db.insert(contactSubmissions).values({
+        const [submission] = await db.insert(contactSubmissions).values({
             name,
             email,
             projectType,
@@ -223,10 +224,23 @@ export async function submitContactForm(req: Request, res: Response): Promise<vo
             status: 'new',
             isRead: false,
             isArchived: false,
-        });
+        }).returning();
+
+        // Send email notification asynchronously
+        // We don't wait for it to complete to return response to user
+        sendContactFormEmail({
+            name,
+            email,
+            phone,
+            projectType,
+            budget,
+            timeline,
+            message
+        }).catch(err => console.error('Failed to send contact email notification:', err));
 
         res.status(201).json({
-            message: 'Message received successfully. We will get back to you shortly.'
+            message: 'Message received successfully. We will get back to you shortly.',
+            id: submission.id
         });
     } catch (error) {
         console.error('Error submitting contact form:', error);

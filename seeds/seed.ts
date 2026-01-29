@@ -8,6 +8,10 @@ import {
     siteConfiguration,
     formOptions,
     adminUsers,
+    clientFitItems,
+    processSteps,
+    aboutItems,
+    SUPER_ADMIN_PERMISSIONS,
 } from '../src/db/schema.js';
 import { hashPassword, generateVerificationCode } from '../src/utils/password.js';
 
@@ -258,6 +262,130 @@ const siteConfigData = [
     },
 ];
 
+// From raw-front/ClientFitSection.tsx - compatible/incompatible criteria
+const clientFitItemsData = [
+    // Compatible items
+    {
+        type: 'compatible',
+        text: 'Requirements are defined before engagement',
+        displayOrder: 1,
+        isPublished: true,
+    },
+    {
+        type: 'compatible',
+        text: 'Budget allocation starts at $1,500+',
+        displayOrder: 2,
+        isPublished: true,
+    },
+    {
+        type: 'compatible',
+        text: 'AI-powered systems, SaaS platforms, or automation tools required',
+        displayOrder: 3,
+        isPublished: true,
+    },
+    {
+        type: 'compatible',
+        text: 'Weekly progress visibility expected',
+        displayOrder: 4,
+        isPublished: true,
+    },
+    {
+        type: 'compatible',
+        text: 'Long-term technical partnership valued',
+        displayOrder: 5,
+        isPublished: true,
+    },
+    // Incompatible items
+    {
+        type: 'incompatible',
+        text: 'Template customization or quick fixes required',
+        displayOrder: 1,
+        isPublished: true,
+    },
+    {
+        type: 'incompatible',
+        text: 'Budget below $1,500 for entire project',
+        displayOrder: 2,
+        isPublished: true,
+    },
+    {
+        type: 'incompatible',
+        text: 'Lowest price is the priority metric',
+        displayOrder: 3,
+        isPublished: true,
+    },
+    {
+        type: 'incompatible',
+        text: 'Mobile-native iOS/Android development needed',
+        displayOrder: 4,
+        isPublished: true,
+    },
+    {
+        type: 'incompatible',
+        text: 'Requirements undefined at engagement',
+        displayOrder: 5,
+        isPublished: true,
+    },
+];
+
+// From raw-front/ProcessSection.tsx - execution phases
+const processStepsData = [
+    {
+        title: 'Discovery',
+        description: 'Requirements captured. Alignment verified.',
+        iconName: 'Phone',
+        duration: '30 min',
+        displayOrder: 1,
+        isPublished: true,
+    },
+    {
+        title: 'Proposal',
+        description: 'Scope defined. Timeline established. Pricing transparent.',
+        iconName: 'FileText',
+        duration: '2-3 days',
+        displayOrder: 2,
+        isPublished: true,
+    },
+    {
+        title: 'Execution',
+        description: 'Agile development. Weekly demonstrations. Real-time visibility.',
+        iconName: 'Code',
+        duration: 'Weekly cycles',
+        displayOrder: 3,
+        isPublished: true,
+    },
+    {
+        title: 'Deployment',
+        description: 'System launched. Support included. Transition complete.',
+        iconName: 'Rocket',
+        duration: '30 days support',
+        displayOrder: 4,
+        isPublished: true,
+    },
+];
+
+// From raw-front/AboutSection.tsx - entity profile
+const aboutItemsData = [
+    {
+        title: 'Directive',
+        description: 'Bridge ambitious objectives with technical execution. Deliver systems where business outcomes are measurable.',
+        displayOrder: 1,
+        isPublished: true,
+    },
+    {
+        title: 'Method',
+        description: 'Problems understood before solutions proposed. Business context, user requirements, success metrics—defined first. Simplest viable solution deployed. Iteration based on evidence.',
+        displayOrder: 2,
+        isPublished: true,
+    },
+    {
+        title: 'Transparency',
+        description: 'Full visibility. Weekly demonstrations. Clear timelines. Challenges communicated immediately. Under-promise. Over-deliver.',
+        displayOrder: 3,
+        isPublished: true,
+    },
+];
+
 // ============================================================================
 // SEED FUNCTION
 // ============================================================================
@@ -274,6 +402,9 @@ async function seed() {
         await db.delete(additionalCapabilities);
         await db.delete(services);
         await db.delete(projects);
+        await db.delete(clientFitItems);
+        await db.delete(processSteps);
+        await db.delete(aboutItems);
         console.log('   ✓ Existing data cleared\n');
 
         // Seed Projects
@@ -325,6 +456,21 @@ async function seed() {
         await db.insert(formOptions).values(budgetRangeOptions);
         console.log(`   ✓ Inserted ${budgetRangeOptions.length} budget ranges`);
 
+        // Seed Client Fit Items
+        console.log('🎯 Seeding client fit items...');
+        await db.insert(clientFitItems).values(clientFitItemsData);
+        console.log(`   ✓ Inserted ${clientFitItemsData.length} client fit items`);
+
+        // Seed Process Steps
+        console.log('📋 Seeding process steps...');
+        await db.insert(processSteps).values(processStepsData);
+        console.log(`   ✓ Inserted ${processStepsData.length} process steps`);
+
+        // Seed About Items
+        console.log('ℹ️ Seeding about items...');
+        await db.insert(aboutItems).values(aboutItemsData);
+        console.log(`   ✓ Inserted ${aboutItemsData.length} about items`);
+
         // Seed Admin User
         console.log('👤 Seeding admin user...');
         await db.delete(adminUsers); // Clear existing admin users
@@ -339,12 +485,16 @@ async function seed() {
             passwordHash: passwordHash,
             name: 'Super Admin',
             role: 'super_admin',
+            status: 'active', // IMPORTANT: Set to active so user can login immediately
+            permissions: SUPER_ADMIN_PERMISSIONS, // Full permissions for super admin
             isEmailVerified: true, // Pre-verified for initial setup
             emailVerifyToken: verificationCode,
             emailVerifyExpires: verifyExpires,
         });
         console.log('   ✓ Created admin user: admin@balaastra.tech');
         console.log(`   ✓ Password: ${adminPassword}`);
+        console.log('   ✓ Status: ACTIVE (ready to login)');
+        console.log('   ✓ Permissions: SUPER_ADMIN (full access)');
         console.log('   ⚠️  IMPORTANT: Change this password after first login!');
 
         console.log('\n✅ Database seeding completed successfully!');
@@ -356,7 +506,10 @@ async function seed() {
         console.log(`   • Trust Signals: ${trustSignalsData.length}`);
         console.log(`   • Site Config Entries: ${siteConfigData.length}`);
         console.log(`   • Form Options: ${systemTypeOptions.length + budgetRangeOptions.length}`);
-        console.log(`   • Admin Users: 1`);
+        console.log(`   • Client Fit Items: ${clientFitItemsData.length}`);
+        console.log(`   • Process Steps: ${processStepsData.length}`);
+        console.log(`   • About Items: ${aboutItemsData.length}`);
+        console.log(`   • Admin Users: 1 (Super Admin - ACTIVE)`);
 
     } catch (error) {
         console.error('❌ Seeding failed:', error);

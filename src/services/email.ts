@@ -198,3 +198,69 @@ export async function sendAdminNotification(
     return { success: false, error: 'Failed to send email' };
   }
 }
+
+
+/**
+ * Send contact form submission email to admin
+ */
+export async function sendContactFormEmail(
+  data: {
+    name: string;
+    email: string;
+    phone?: string;
+    projectType: string;
+    budget: string;
+    timeline?: string;
+    message: string;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await resend.emails.send({
+      from: `Balaastra Tech <${FROM_EMAIL}>`,
+      to: env.ADMIN_EMAIL,
+      subject: `New Contact Form: ${data.projectType} - ${data.budget}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #1a1a2e;">New Contact Form Submission</h2>
+          <div style="background: #f4f4f4; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <p><strong>Name:</strong> ${escapeHtml(data.name)}</p>
+            <p><strong>Email:</strong> ${escapeHtml(data.email)}</p>
+            ${data.phone ? `<p><strong>Phone:</strong> ${escapeHtml(data.phone)}</p>` : ''}
+            <p><strong>Project Type:</strong> ${escapeHtml(data.projectType)}</p>
+            <p><strong>Budget:</strong> ${escapeHtml(data.budget)}</p>
+            ${data.timeline ? `<p><strong>Timeline:</strong> ${escapeHtml(data.timeline)}</p>` : ''}
+          </div>
+          <h3>Message:</h3>
+          <div style="background: white; padding: 15px; border: 1px solid #eee; border-radius: 4px;">
+            <p style="white-space: pre-wrap;">${escapeHtml(data.message)}</p>
+          </div>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="color: #666; font-size: 12px;">
+            BalaAstraTech Admin Panel - Notification System
+          </p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error('Failed to send contact form email:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('Email service error:', err);
+    return { success: false, error: 'Failed to send email' };
+  }
+}
+
+function escapeHtml(text: string): string {
+  const htmlEntities: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEntities[char] || char);
+}
