@@ -12,6 +12,7 @@ import * as ClientFit from '../controllers/admin/client-fit.controller.js';
 import * as Process from '../controllers/admin/process.controller.js';
 import * as About from '../controllers/admin/about.controller.js';
 import * as Users from '../controllers/admin/users.controller.js';
+import * as Pages from '../controllers/admin/pages.controller.js';
 
 const router = Router();
 
@@ -28,6 +29,16 @@ router.post('/projects', requirePermission('projects'), validate(Projects.projec
 router.put('/projects/:id', requirePermission('projects'), validate(Projects.projectSchema), Projects.updateProject);
 router.delete('/projects/:id', requirePermission('projects'), Projects.deleteProject);
 router.patch('/projects/reorder', requirePermission('projects'), validate(Projects.reorderSchema), Projects.reorderProjects);
+router.patch('/projects/:id/publish', requirePermission('projects'), validate(Projects.publishSchema), Projects.setProjectPublished);
+
+// ============================================================================
+// Pages (website pages built from sections). Same permission as site settings.
+// ============================================================================
+router.get('/pages', requirePermission('siteConfig'), Pages.getPages);
+router.get('/pages/:id', requirePermission('siteConfig'), Pages.getPageById);
+router.post('/pages', requirePermission('siteConfig'), validate(Pages.pageSchema), Pages.createPage);
+router.put('/pages/:id', requirePermission('siteConfig'), validate(Pages.pageSchema), Pages.updatePage);
+router.delete('/pages/:id', requirePermission('siteConfig'), Pages.deletePage);
 
 // ============================================================================
 // Services
@@ -38,6 +49,12 @@ router.post('/services', requirePermission('services'), validate(Content.service
 router.put('/services/:id', requirePermission('services'), validate(Content.serviceSchema), Content.updateService);
 router.delete('/services/:id', requirePermission('services'), Content.deleteService);
 router.patch('/services/reorder', requirePermission('services'), validate(Projects.reorderSchema), Content.reorderServices);
+
+router.get('/case-studies', requirePermission('trustSignals'), Content.getCaseStudies);
+router.get('/case-studies/:id', requirePermission('trustSignals'), Content.getCaseStudyById);
+router.post('/case-studies', requirePermission('trustSignals'), validate(Content.caseStudySchema), Content.createCaseStudy);
+router.put('/case-studies/:id', requirePermission('trustSignals'), validate(Content.caseStudySchema), Content.updateCaseStudy);
+router.delete('/case-studies/:id', requirePermission('trustSignals'), Content.deleteCaseStudy);
 
 // ============================================================================
 // Additional Capabilities

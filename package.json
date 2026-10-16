@@ -13,7 +13,9 @@
     "db:seed": "tsx seeds/seed.ts",
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
-    "db:test": "tsx src/db/test-connection.ts"
+    "db:test": "tsx src/db/test-connection.ts",
+    "test": "tsc && node --test tests/*.test.mjs",
+    "preview:throwaway": "tsc && node scripts/preview-throwaway.mjs"
   },
   "keywords": [
     "portfolio",
@@ -40,6 +42,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.9",
+    "@electric-sql/pglite-socket": "^0.2.12",
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

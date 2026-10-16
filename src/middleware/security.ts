@@ -14,6 +14,9 @@ export const globalLimiter = rateLimit({
 export const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 5,
+    // Only credential attempts count. The admin calls GET /verify on every page load, so counting it
+    // logged the admin out after 5 page loads in 15 minutes.
+    skip: (req) => req.method === 'GET' || req.path === '/logout',
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: 'Too many login attempts, please try again later.',

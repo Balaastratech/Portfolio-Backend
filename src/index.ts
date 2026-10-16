@@ -21,6 +21,9 @@ app.set('trust proxy', 1);
 
 // Security Middleware
 app.use(securityHeaders);
+// Local preview only: seed images/videos from a git-ignored folder (preview:throwaway sets LOCAL_MEDIA_DIR).
+// Before the rate limiter, because a video plays as many range requests.
+if (process.env.LOCAL_MEDIA_DIR) app.use('/media', express.static(path.resolve(process.env.LOCAL_MEDIA_DIR)));
 app.use(globalLimiter);
 
 // Middleware

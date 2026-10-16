@@ -14,6 +14,7 @@ import {
     SUPER_ADMIN_PERMISSIONS,
 } from '../src/db/schema.js';
 import { hashPassword, generateVerificationCode } from '../src/utils/password.js';
+import { slugify } from '../src/db/content.js';
 
 // ============================================================================
 // SEED DATA - Extracted from Frontend Components
@@ -236,7 +237,7 @@ const budgetRangesData = [
 const siteConfigData = [
     {
         key: "contact_email",
-        value: { email: "hello@balaastra.tech" },
+        value: { email: "yuvraj@balaastratech.com" },
     },
     {
         key: "social_links",
@@ -257,7 +258,7 @@ const siteConfigData = [
         key: "contact_info",
         value: {
             phone: "Available upon request",
-            location: "Remote-first. Global clients.",
+            location: "Junagadh, Gujarat 362002, India",
         },
     },
 ];
@@ -409,7 +410,7 @@ async function seed() {
 
         // Seed Projects
         console.log('📦 Seeding projects...');
-        await db.insert(projects).values(projectsData);
+        await db.insert(projects).values(projectsData.map((p) => ({ ...p, slug: slugify(p.title) })));
         console.log(`   ✓ Inserted ${projectsData.length} projects`);
 
         // Seed Services

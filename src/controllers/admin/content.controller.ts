@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { db } from '../../config/database.js';
-import { services, additionalCapabilities, techStackLayers, trustSignals } from '../../db/schema.js';
+import { services, additionalCapabilities, techStackLayers, trustSignals, caseStudies } from '../../db/schema.js';
 import { eq, desc, asc } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -15,6 +15,35 @@ async function getNextOrder(table: any) {
         .orderBy(desc(table.displayOrder))
         .limit(1);
     return (existing[0]?.displayOrder || 0) + 1;
+}
+
+export const caseStudySchema = z.object({
+    clientLabel: z.string().min(1), problem: z.string().min(1), build: z.string().min(1),
+    result: z.string().min(1), pillarTags: z.array(z.string()).default([]),
+    consentConfirmed: z.boolean().default(false), isPublished: z.boolean().default(false),
+}).refine(value => !value.isPublished || value.consentConfirmed,
+    { message: 'Explicit client consent is required before publishing', path: ['consentConfirmed'] });
+
+export async function getCaseStudies(_req: Request, res: Response): Promise<void> {
+    try { res.json(await db.select().from(caseStudies).orderBy(asc(caseStudies.displayOrder))); }
+    catch { res.status(500).json({ error: 'Internal Server Error' }); }
+}
+export async function getCaseStudyById(req: Request, res: Response): Promise<void> {
+    const [item] = await db.select().from(caseStudies).where(eq(caseStudies.id, req.params.id as string));
+    if (!item) res.status(404).json({ error: 'Case study not found' }); else res.json(item);
+}
+export async function createCaseStudy(req: Request, res: Response): Promise<void> {
+    const [item] = await db.insert(caseStudies).values({ ...req.body, displayOrder: await getNextOrder(caseStudies) }).returning();
+    res.status(201).json(item);
+}
+export async function updateCaseStudy(req: Request, res: Response): Promise<void> {
+    const [item] = await db.update(caseStudies).set({ ...req.body, updatedAt: new Date() })
+        .where(eq(caseStudies.id, req.params.id as string)).returning();
+    if (!item) res.status(404).json({ error: 'Case study not found' }); else res.json(item);
+}
+export async function deleteCaseStudy(req: Request, res: Response): Promise<void> {
+    const [item] = await db.delete(caseStudies).where(eq(caseStudies.id, req.params.id as string)).returning();
+    if (!item) res.status(404).json({ error: 'Case study not found' }); else res.json({ message: 'Deleted' });
 }
 
 // ============================================================================

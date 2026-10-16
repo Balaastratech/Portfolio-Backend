@@ -1,5 +1,6 @@
 import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import type { ProjectPage, PricePlan, DemoVideo, LiveLink, Screenshot, StoryStep, Feature, FaqItem, Cta, Seo, Section } from './content.js';
 
 // ============================================================================
 // PROJECTS TABLE
@@ -16,11 +17,47 @@ export const projects = pgTable('projects', {
     techStack: jsonb('tech_stack').$type<string[]>().default([]),
     displayOrder: integer('display_order').notNull().default(0),
     isPublished: boolean('is_published').notNull().default(true),
+    // v2 project pages (migration 0004_project_pages; types + zod in ./content.ts)
+    slug: varchar('slug', { length: 120 }).notNull(),
+    status: varchar('status', { length: 20 }).notNull().default('demo'),
+    showInNav: boolean('show_in_nav').notNull().default(false),
+    dataLabel: varchar('data_label', { length: 80 }).notNull().default('Demo · sample data'),
+    page: jsonb('page').$type<Partial<ProjectPage>>().notNull().default({}),
+    pricePlans: jsonb('price_plans').$type<PricePlan[]>().notNull().default([]),
+    demos: jsonb('demos').$type<DemoVideo[]>().notNull().default([]),
+    liveLink: jsonb('live_link').$type<LiveLink | null>(),
+    screenshots: jsonb('screenshots').$type<Screenshot[]>().notNull().default([]),
+    story: jsonb('story').$type<StoryStep[]>().notNull().default([]),
+    features: jsonb('features').$type<Feature[]>().notNull().default([]),
+    faq: jsonb('faq').$type<FaqItem[]>().notNull().default([]),
+    cta: jsonb('cta').$type<Cta>().notNull().default({}),
+    seo: jsonb('seo').$type<Seo>().notNull().default({}),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
     displayOrderIdx: index('projects_display_order_idx').on(table.displayOrder),
     publishedIdx: index('projects_published_idx').on(table.isPublished),
+    slugIdx: uniqueIndex('projects_slug_idx').on(table.slug),
+}));
+
+// ============================================================================
+// PAGES TABLE (migration 0005_pages)
+// Every website page = an ordered list of sections; types + zod in ./content.ts
+// ============================================================================
+export const pages = pgTable('pages', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    slug: varchar('slug', { length: 120 }).notNull(),
+    title: varchar('title', { length: 255 }).notNull(),
+    sections: jsonb('sections').$type<Section[]>().notNull().default([]),
+    seo: jsonb('seo').$type<Seo>().notNull().default({}),
+    isPublished: boolean('is_published').notNull().default(true),
+    // Home, Products, About, Contact, Privacy, Pricing: the site links to them, so they keep their address
+    isSystem: boolean('is_system').notNull().default(false),
+    displayOrder: integer('display_order').notNull().default(0),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+    slugIdx: uniqueIndex('pages_slug_idx').on(table.slug),
 }));
 
 // ============================================================================
@@ -88,6 +125,23 @@ export const trustSignals = pgTable('trust_signals', {
     displayOrderIdx: index('trust_signals_display_order_idx').on(table.displayOrder),
 }));
 
+export const caseStudies = pgTable('case_studies', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    clientLabel: varchar('client_label', { length: 255 }).notNull(),
+    problem: text('problem').notNull(),
+    build: text('build').notNull(),
+    result: text('result').notNull(),
+    pillarTags: jsonb('pillar_tags').$type<string[]>().notNull().default([]),
+    consentConfirmed: boolean('consent_confirmed').notNull().default(false),
+    isPublished: boolean('is_published').notNull().default(false),
+    displayOrder: integer('display_order').notNull().default(0),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+    displayOrderIdx: index('case_studies_display_order_idx').on(table.displayOrder),
+    publishGateIdx: index('case_studies_publish_gate_idx').on(table.isPublished, table.consentConfirmed),
+}));
+
 // ============================================================================
 // SITE CONFIGURATION TABLE
 // Stores key-value site settings
@@ -128,7 +182,9 @@ export const contactSubmissions = pgTable('contact_submissions', {
     budget: varchar('budget', { length: 100 }).notNull(),
     timeline: varchar('timeline', { length: 100 }),
     message: text('message').notNull(),
-    status: varchar('status', { length: 20 }).notNull().default('new'), // new, in_progress, completed, archived
+    status: varchar('status', { length: 20 }).notNull().default('new'), // new, read, replied, archived
+    // Did the notification email reach ADMIN_EMAIL? sent | failed | unknown (rows from before 0005)
+    emailStatus: varchar('email_status', { length: 20 }).notNull().default('unknown'),
     isRead: boolean('is_read').notNull().default(false),
     isArchived: boolean('is_archived').notNull().default(false),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -308,6 +364,7 @@ export const mediaUploadsRelations = relations(mediaUploads, ({ one }) => ({
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
+export type Page = typeof pages.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 
@@ -346,3 +403,5 @@ export type NewProcessStep = typeof processSteps.$inferInsert;
 
 export type AboutItem = typeof aboutItems.$inferSelect;
 export type NewAboutItem = typeof aboutItems.$inferInsert;
+export type CaseStudy = typeof caseStudies.$inferSelect;
+export type NewCaseStudy = typeof caseStudies.$inferInsert;

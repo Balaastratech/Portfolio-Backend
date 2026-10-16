@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import { db } from '../../config/database.js';
 import { projects } from '../../db/schema.js';
-import { eq, desc, asc, inArray } from 'drizzle-orm';
+import { eq, desc, asc, and, ne } from 'drizzle-orm';
 import { z } from 'zod';
+import { projectV2Fields, slugify } from '../../db/content.js';
 
 // ============================================================================
 // Validation Schemas
@@ -13,11 +14,37 @@ export const projectSchema = z.object({
     category: z.string().min(1),
     shortDescription: z.string().min(1),
     fullDescription: z.string().min(1),
-    previewUrl: z.string().url().nullable().optional(),
+    previewUrl: z.union([z.string().url(), z.literal('')]).nullable().optional(), // the form sends '' when empty
     specifications: z.array(z.string()),
     techStack: z.array(z.string()),
     isPublished: z.boolean().default(false),
+    ...projectV2Fields,
 });
+
+export const publishSchema = z.object({ isPublished: z.boolean() });
+
+// v2 keys copied straight from the validated body; undefined ones are skipped by drizzle,
+// so the old form (which never sends them) cannot wipe v2 content.
+const V2_KEYS = ['status', 'showInNav', 'dataLabel', 'page', 'pricePlans', 'demos', 'liveLink',
+    'screenshots', 'story', 'features', 'faq', 'cta', 'seo'] as const;
+
+function pickV2(body: Record<string, unknown>) {
+    return Object.fromEntries(V2_KEYS.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
+}
+
+async function slugTaken(slug: string, exceptId?: string): Promise<boolean> {
+    const where = exceptId ? and(eq(projects.slug, slug), ne(projects.id, exceptId)) : eq(projects.slug, slug);
+    const [row] = await db.select({ id: projects.id }).from(projects).where(where).limit(1);
+    return !!row;
+}
+
+async function freeSlug(title: string): Promise<string> {
+    const base = slugify(title);
+    for (let n = 1; ; n++) {
+        const candidate = n === 1 ? base : `${base}-${n}`;
+        if (!(await slugTaken(candidate))) return candidate;
+    }
+}
 
 export const reorderSchema = z.object({
     items: z.array(z.object({
@@ -79,7 +106,15 @@ export async function createProject(req: Request, res: Response): Promise<void> 
 
         const nextOrder = (existing[0]?.displayOrder || 0) + 1;
 
+        if (req.body.slug && await slugTaken(req.body.slug)) {
+            res.status(409).json({ error: 'Conflict', message: `Slug "${req.body.slug}" is already used by another project` });
+            return;
+        }
+        const slug = req.body.slug || await freeSlug(title);
+
         const [newProject] = await db.insert(projects).values({
+            ...pickV2(req.body),
+            slug,
             title,
             category,
             shortDescription,
@@ -110,9 +145,16 @@ export async function updateProject(req: Request, res: Response): Promise<void> 
             previewUrl, specifications, techStack, isPublished
         } = req.body;
 
+        if (req.body.slug && await slugTaken(req.body.slug, id)) {
+            res.status(409).json({ error: 'Conflict', message: `Slug "${req.body.slug}" is already used by another project` });
+            return;
+        }
+
         const [updated] = await db
             .update(projects)
             .set({
+                ...pickV2(req.body),
+                slug: req.body.slug,
                 title,
                 category,
                 shortDescription,
@@ -134,6 +176,29 @@ export async function updateProject(req: Request, res: Response): Promise<void> 
         res.json(updated);
     } catch (error) {
         console.error('Error updating project:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+}
+
+/**
+ * PATCH /api/admin/projects/:id/publish
+ * Publish or unpublish one project without sending the whole form
+ */
+export async function setProjectPublished(req: Request, res: Response): Promise<void> {
+    try {
+        const id = req.params.id as string;
+        const [updated] = await db
+            .update(projects)
+            .set({ isPublished: req.body.isPublished, updatedAt: new Date() })
+            .where(eq(projects.id, id))
+            .returning();
+        if (!updated) {
+            res.status(404).json({ error: 'Project not found' });
+            return;
+        }
+        res.json(updated);
+    } catch (error) {
+        console.error('Error publishing project:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 }

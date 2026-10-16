@@ -5,7 +5,8 @@ import { eq, desc, asc, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 
 export const statusSchema = z.object({
-    status: z.enum(['new', 'read', 'archived']),
+    // new → read (opened) → replied (he answered); archived = done with it
+    status: z.enum(['new', 'read', 'replied', 'archived']),
 });
 
 export async function getSubmissions(_req: Request, res: Response): Promise<void> {
@@ -28,7 +29,7 @@ export async function updateSubmissionStatus(req: Request, res: Response): Promi
             .update(contactSubmissions)
             .set({
                 status,
-                isRead: status === 'read' || status === 'archived',
+                isRead: status !== 'new',
                 isArchived: status === 'archived'
             })
             .where(eq(contactSubmissions.id, id))

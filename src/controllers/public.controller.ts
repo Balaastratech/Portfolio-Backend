@@ -12,9 +12,19 @@ import {
     clientFitItems,
     processSteps,
     aboutItems,
+    caseStudies,
 } from '../db/schema.js';
 import { desc, eq, asc, and } from 'drizzle-orm';
 import { sendContactFormEmail } from '../services/email.js';
+import { contactDeliveryStatus } from '../utils/contactDelivery.js';
+import { visibleOnly, type SocialLink } from '../db/content.js';
+
+type ProjectRow = typeof projects.$inferSelect;
+
+/** Public shape: hidden price plans and demo videos never leave the server. */
+function publicProject(p: ProjectRow): ProjectRow {
+    return { ...p, pricePlans: visibleOnly(p.pricePlans), demos: visibleOnly(p.demos) };
+}
 
 /**
  * GET /api/public/projects
@@ -28,9 +38,31 @@ export async function getProjects(_req: Request, res: Response): Promise<void> {
             .where(eq(projects.isPublished, true))
             .orderBy(asc(projects.displayOrder));
 
-        res.json(data);
+        res.json(data.map(publicProject));
     } catch (error) {
         console.error('Error fetching projects:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+}
+
+/**
+ * GET /api/public/projects/:slug
+ * One published project by slug (v2 project pages)
+ */
+export async function getProjectBySlug(req: Request, res: Response): Promise<void> {
+    try {
+        const [item] = await db
+            .select()
+            .from(projects)
+            .where(and(eq(projects.slug, req.params.slug as string), eq(projects.isPublished, true)))
+            .limit(1);
+        if (!item) {
+            res.status(404).json({ error: 'Project not found' });
+            return;
+        }
+        res.json(publicProject(item));
+    } catch (error) {
+        console.error('Error fetching project by slug:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 }
@@ -96,6 +128,18 @@ export async function getTrustSignals(_req: Request, res: Response): Promise<voi
         res.json(data);
     } catch (error) {
         console.error('Error fetching trust signals:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+}
+
+export async function getCaseStudies(_req: Request, res: Response): Promise<void> {
+    try {
+        const data = await db.select().from(caseStudies)
+            .where(and(eq(caseStudies.isPublished, true), eq(caseStudies.consentConfirmed, true)))
+            .orderBy(asc(caseStudies.displayOrder));
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching case studies:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 }
@@ -168,6 +212,11 @@ export async function getConfig(_req: Request, res: Response): Promise<void> {
             return acc;
         }, {} as Record<string, any>);
 
+        // v2 list: hidden rows stay private; the legacy object form passes through untouched.
+        if (Array.isArray(config.social_links)) {
+            config.social_links = visibleOnly(config.social_links as SocialLink[]).sort((a, b) => a.order - b.order);
+        }
+
         res.json(config);
     } catch (error) {
         console.error('Error fetching config:', error);
@@ -211,7 +260,8 @@ export async function getFormOptions(_req: Request, res: Response): Promise<void
  */
 export async function submitContactForm(req: Request, res: Response): Promise<void> {
     try {
-        const { name, email, projectType, budget, message, phone, timeline } = req.body;
+        const { name, email, projectType, message, phone, timeline } = req.body;
+        const budget: string = req.body.budget || 'not asked'; // v2 form has no budget field; column stays NOT NULL
 
         const [submission] = await db.insert(contactSubmissions).values({
             name,
@@ -227,8 +277,9 @@ export async function submitContactForm(req: Request, res: Response): Promise<vo
         }).returning();
 
         // Send email notification (Must await in Vercel/Serverless to ensure execution)
+        let notificationDelivered = false;
         try {
-            await sendContactFormEmail({
+            const delivery = await sendContactFormEmail({
                 name,
                 email,
                 phone,
@@ -237,14 +288,22 @@ export async function submitContactForm(req: Request, res: Response): Promise<vo
                 timeline,
                 message
             });
+            notificationDelivered = delivery.success;
         } catch (emailError) {
             console.error('Failed to send contact email notification:', emailError);
             // We still return success to the user because the DB save was successful
         }
+        // The admin Inbox shows whether the email reached him, per enquiry.
+        await db.update(contactSubmissions).set({ emailStatus: notificationDelivered ? 'sent' : 'failed' })
+            .where(eq(contactSubmissions.id, submission.id));
 
-        res.status(201).json({
-            message: 'Message received successfully. We will get back to you shortly.',
-            id: submission.id
+        res.status(contactDeliveryStatus(notificationDelivered)).json({
+            message: notificationDelivered
+                ? 'Message saved and notification delivered.'
+                : 'Message saved. Notification delivery is delayed; the admin inbox retains your submission.',
+            id: submission.id,
+            notificationDelivered,
+            manualFollowupRequired: !notificationDelivered,
         });
     } catch (error) {
         console.error('Error submitting contact form:', error);

@@ -1,17 +1,24 @@
 import { Request, Response } from 'express';
 import { db } from '../../config/database.js';
-import { siteConfiguration, formOptions, projects, services, contactSubmissions } from '../../db/schema.js';
+import { siteConfiguration, formOptions, projects, services, contactSubmissions, pages } from '../../db/schema.js';
 import { eq, asc, inArray, count } from 'drizzle-orm';
 import { z } from 'zod';
+import { settingsKeySchemas } from '../../db/content.js';
 
 export async function getDashboardStats(_req: Request, res: Response): Promise<void> {
     try {
-        const [projectCount] = await db.select({ count: count() }).from(projects);
-        const [serviceCount] = await db.select({ count: count() }).from(services);
-        const [unreadCount] = await db.select({ count: count() }).from(contactSubmissions).where(eq(contactSubmissions.status, 'new'));
-
+        const [[live], [hidden], [serviceCount], [unreadCount], [pageCount]] = await Promise.all([
+            db.select({ count: count() }).from(projects).where(eq(projects.isPublished, true)),
+            db.select({ count: count() }).from(projects).where(eq(projects.isPublished, false)),
+            db.select({ count: count() }).from(services),
+            db.select({ count: count() }).from(contactSubmissions).where(eq(contactSubmissions.status, 'new')),
+            db.select({ count: count() }).from(pages),
+        ]);
         res.json({
-            projects: projectCount.count,
+            projects: live.count + hidden.count,
+            productsLive: live.count,
+            productsHidden: hidden.count,
+            pages: pageCount.count,
             services: serviceCount.count,
             unreadMessages: unreadCount.count,
         });
@@ -30,6 +37,18 @@ export const configSchema = z.object({
     items: z.array(z.object({
         key: z.string(),
         value: z.any(),
+    }).superRefine((item, ctx) => {
+        // v2 SiteSettings keys are validated; all other keys save as before.
+        const schema = settingsKeySchemas[item.key];
+        if (!schema) return;
+        const result = schema.safeParse(item.value);
+        if (!result.success) {
+            for (const issue of result.error.issues) {
+                ctx.addIssue({ code: 'custom', path: ['value', ...issue.path], message: `${item.key}: ${issue.message}` });
+            }
+        } else {
+            item.value = result.data;
+        }
     })),
 });
 

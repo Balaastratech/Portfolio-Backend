@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
-import { apiRateLimiter } from '../middleware/rateLimit.js';
+import { apiRateLimiter, emailRateLimiter } from '../middleware/rateLimit.js';
 import {
     getProjects,
+    getProjectBySlug,
     getServices,
     getTechStack,
     getTrustSignals,
@@ -12,8 +13,10 @@ import {
     getClientFit,
     getProcess,
     getAbout,
+    getCaseStudies,
     submitContactForm,
 } from '../controllers/public.controller.js';
+import { getPublicPages } from '../controllers/admin/pages.controller.js';
 
 const router = Router();
 
@@ -25,7 +28,7 @@ const contactFormSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
     email: z.string().email('Valid email is required'),
     projectType: z.string().min(1, 'Project type is required'),
-    budget: z.string().min(1, 'Budget is required'),
+    budget: z.string().optional(), // v2 removed the budget gate (WEBSITE-BRIEF §6)
     message: z.string().min(10, 'Message must be at least 10 characters'),
     phone: z.string().optional(),
     timeline: z.string().optional(),
@@ -37,19 +40,22 @@ const contactFormSchema = z.object({
 // ============================================================================
 
 router.get('/projects', apiRateLimiter, getProjects);
+router.get('/projects/:slug', apiRateLimiter, getProjectBySlug);
 router.get('/services', apiRateLimiter, getServices);
 router.get('/tech-stack', apiRateLimiter, getTechStack);
 router.get('/trust-signals', apiRateLimiter, getTrustSignals);
 router.get('/config', apiRateLimiter, getConfig);
+router.get('/pages', apiRateLimiter, getPublicPages);
 router.get('/form-options', apiRateLimiter, getFormOptions);
 router.get('/client-fit', apiRateLimiter, getClientFit);
 router.get('/process', apiRateLimiter, getProcess);
 router.get('/about', apiRateLimiter, getAbout);
+router.get('/case-studies', apiRateLimiter, getCaseStudies);
 
 // Contact form has stricter validation
 router.post(
     '/contact',
-    apiRateLimiter,
+    emailRateLimiter,
     validate(contactFormSchema),
     submitContactForm
 );

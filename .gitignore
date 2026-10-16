@@ -15,3 +15,6 @@ uploads/*
 # OS
 .DS_Store
 Thumbs.db
+
+# Local preview media (seed videos/images; never committed — Cloudinary on the live site)
+.local-media/

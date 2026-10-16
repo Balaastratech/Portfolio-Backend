@@ -22,6 +22,27 @@
       "when": 1769578478121,
       "tag": "0002_complex_miek",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791827363449,
+      "tag": "0003_case_studies",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791827364449,
+      "tag": "0004_project_pages",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791827365449,
+      "tag": "0005_pages",
+      "breakpoints": true
     }
   ]
 }

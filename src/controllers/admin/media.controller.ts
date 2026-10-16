@@ -82,7 +82,7 @@ export async function uploadFile(req: Request, res: Response): Promise<void> {
 export async function getFiles(req: Request, res: Response): Promise<void> {
     try {
         const { resources } = await cloudinary.search
-            .expression('folder:balaastra-portfolio')
+            .expression('folder:balaastra-portfolio OR folder:balaastra-portfolio/*') // seed media lives in balaastra-portfolio/seed/…
             .sort_by('created_at', 'desc')
             .max_results(30)
             .execute();
@@ -94,6 +94,7 @@ export async function getFiles(req: Request, res: Response): Promise<void> {
             mimeType: file.format,
             size: file.bytes,
             storagePath: file.secure_url,
+            resourceType: file.resource_type, // image | video
             createdAt: file.created_at,
         }));
 
@@ -122,7 +123,8 @@ export async function deleteFile(req: Request, res: Response): Promise<void> {
         // However, looking at the frontend/admin panel, usually we just want to upload.
         // Let's implement a simple direct delete for now.
 
-        await cloudinary.uploader.destroy(id as string);
+        // ?type=video for videos (Cloudinary deletes images by default)
+        await cloudinary.uploader.destroy(id as string, { resource_type: req.query.type === 'video' ? 'video' : 'image' });
 
         res.json({ message: 'File deleted successfully' });
     } catch (error) {
