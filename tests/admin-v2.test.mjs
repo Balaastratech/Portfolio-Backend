@@ -255,14 +255,22 @@ test('set-prices: dry run writes nothing; apply changes only prices, closings an
     const lrd = () => t.db.select().from(projects).where(eq(projects.slug, 'lead-response-desk')).then((r) => r[0]);
     // live as it is today: no prices, and a video he uploaded in the admin
     await t.db.update(projects).set({ pricePlans: [], demos: [{ id: 'his', title: 'His upload', source: 'url', url: 'https://youtu.be/abcdefgh', featured: true, order: 1, visible: true }] }).where(eq(projects.slug, 'lead-response-desk'));
+    // offer 5 as live today: old name, old card line, a FAQ he may have edited
+    const nc = () => t.db.select().from(projects).where(eq(projects.slug, 'negotiation-copilot')).then((r) => r[0]);
+    const ncBefore = await nc();
+    await t.db.update(projects).set({ title: 'Negotiation Copilot', page: { ...ncBefore.page, cardTitle: 'Walk into every big call prepared.' }, faq: [{ q: 'His', a: 'edit' }] }).where(eq(projects.slug, 'negotiation-copilot'));
     const dry = await setPrices(t.db, seed);
-    assert.deepEqual(dry.changes, ['product lead-response-desk: pricePlans']);
+    assert.deepEqual(dry.changes, ['product lead-response-desk: pricePlans', 'product negotiation-copilot: title, page']);
     assert.equal((await lrd()).pricePlans.length, 0); // dry run wrote nothing
     const done = await setPrices(t.db, seed, { apply: true });
     assert.deepEqual(done.changes, dry.changes);
     const after = await lrd();
     assert.equal(after.pricePlans[0].setup, 12999);
     assert.equal(after.demos[0].id, 'his'); // his admin edit survives
+    const ncAfter = await nc();
+    assert.equal(ncAfter.title, 'Deal-Call Voice Agent');
+    assert.equal(ncAfter.page.cardTitle, ncBefore.page.cardTitle);
+    assert.deepEqual(ncAfter.faq, [{ q: 'His', a: 'edit' }]); // only the listed copy fields move
     assert.deepEqual((await setPrices(t.db, seed)).changes, []);
 });
 

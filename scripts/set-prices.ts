@@ -4,6 +4,8 @@
 //   - every product's price plans (matched by slug; a product missing on live is reported, not created),
 //   - the closing lines of Lead Response Desk and Inventra that promised "a fixed price",
 //   - the whole Pricing page (its sections and SEO),
+//   - offer 5's new name and copy (Deal-Call Voice Agent, DEC-20261017-COPILOT-PUBLISH): title, descriptions,
+//     features, SEO and the page headline/lede/card lines (its videos, screenshots and FAQ stay as they are),
 //   - the "fixed price" sentence on Home and the "scoped and priced" sentence on Products, only where the old
 //     wording is still there.
 //   npx tsx scripts/set-prices.ts            ← dry run: lists what would change, writes nothing
@@ -17,6 +19,9 @@ import { pages, projects } from '../src/db/schema.js';
 import { loadSeed, SEED_FILE } from '../seeds/seed-v2.js';
 
 const CLOSING_SLUGS = ['lead-response-desk', 'inventra'];
+const COPY_SLUG = 'negotiation-copilot';
+const COPY_FIELDS = ['title', 'shortDescription', 'fullDescription', 'features', 'seo'] as const;
+const COPY_PAGE_KEYS = ['headline', 'lede', 'cardTitle', 'cardBody'] as const;
 const TEXT_SWAPS: [string, string][] = [
     ['and a fixed price.', 'and your exact price.'],
     ['Every project is scoped and priced after a 20-minute call.', 'Each shows its starting price; your exact price comes after a 20-minute call.'],
@@ -33,13 +38,17 @@ export async function setPrices(db: NodePgDatabase<any>, seed: Seed = loadSeed(S
     const missing: string[] = [];
     const run = async (tx: NodePgDatabase<any>) => {
         for (const p of seed.projectRows) {
-            const [row] = await tx.select({ id: projects.id, page: projects.page, pricePlans: projects.pricePlans })
-                .from(projects).where(eq(projects.slug, p.slug));
+            const [row] = await tx.select().from(projects).where(eq(projects.slug, p.slug));
             if (!row) { missing.push(p.slug); continue; }
             const set: Record<string, unknown> = {};
             if (!same(row.pricePlans, p.pricePlans)) set.pricePlans = p.pricePlans;
             const closing = p.page?.closing;
             if (CLOSING_SLUGS.includes(p.slug) && closing && !same(row.page.closing, closing)) set.page = { ...row.page, closing };
+            if (p.slug === COPY_SLUG) {
+                for (const k of COPY_FIELDS) if (!same(row[k], p[k])) set[k] = p[k];
+                const want = Object.fromEntries(COPY_PAGE_KEYS.map((k) => [k, p.page?.[k]]));
+                if (COPY_PAGE_KEYS.some((k) => row.page[k] !== want[k])) set.page = { ...row.page, ...want };
+            }
             if (!Object.keys(set).length) continue;
             changes.push(`product ${p.slug}: ${Object.keys(set).join(', ')}`);
             if (apply) await tx.update(projects).set({ ...set, updatedAt: new Date() }).where(eq(projects.id, row.id));
