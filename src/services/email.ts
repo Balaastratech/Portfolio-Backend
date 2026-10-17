@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { enquirySubject, realBudget } from '../utils/contactEmail.js';
 import { env } from '../config/env.js';
 
 // Initialize Resend client
@@ -218,7 +219,7 @@ export async function sendContactFormEmail(
     const { error } = await resend.emails.send({
       from: `Balaastra Tech <${FROM_EMAIL}>`,
       to: env.ADMIN_EMAIL,
-      subject: `New Contact Form: ${data.projectType} - ${data.budget}`,
+      subject: enquirySubject(data),
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #1a1a2e;">New Contact Form Submission</h2>
@@ -227,7 +228,7 @@ export async function sendContactFormEmail(
             <p><strong>Email:</strong> ${escapeHtml(data.email)}</p>
             ${data.phone ? `<p><strong>Phone:</strong> ${escapeHtml(data.phone)}</p>` : ''}
             <p><strong>Project Type:</strong> ${escapeHtml(data.projectType)}</p>
-            <p><strong>Budget:</strong> ${escapeHtml(data.budget)}</p>
+            ${realBudget(data.budget) ? `<p><strong>Budget:</strong> ${escapeHtml(realBudget(data.budget)!)}</p>` : ''}
             ${data.timeline ? `<p><strong>Timeline:</strong> ${escapeHtml(data.timeline)}</p>` : ''}
           </div>
           <h3>Message:</h3>
