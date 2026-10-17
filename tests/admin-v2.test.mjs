@@ -231,10 +231,10 @@ test('v2 seed: one seed file feeds site and admin; Organizer seeded as the 7th; 
     assert.deepEqual(admin, pub); // admin lists exactly what the site lists
     assert.deepEqual(seed.projectRows.map((p) => p.slug), pub); // and the site's offline fallback is the same file
     const lrd = (await get('/api/public/projects/lead-response-desk')).body;
-    assert.equal(lrd.pricePlans.length, 0); // his decision: no price plans
+    assert.deepEqual(lrd.pricePlans.map((p) => p.region), ['IN', 'UK', 'US', 'CUSTOM']); // starting prices + "contact us" (DEC-20261017-PRICES-APPROVED)
     assert.equal(lrd.demos.find((d) => d.featured).url, '/media/lead-response-desk/demo-16x9.mp4');
     const inv = (await get('/api/public/projects/inventra')).body;
-    assert.deepEqual(inv.pricePlans.map((p) => p.isQuote), [true]);
+    assert.deepEqual(inv.pricePlans.map((p) => p.isQuote), [false, false, false, true]);
     assert.equal((await get('/api/public/projects/nope')).status, 404);
     const cfg = (await get('/api/public/config')).body;
     assert.equal(cfg.contact_email, 'yuvraj@balaastratech.com');
@@ -244,6 +244,26 @@ test('v2 seed: one seed file feeds site and admin; Organizer seeded as the 7th; 
     const pages = (await get('/api/public/pages')).body;
     assert.deepEqual(pages.map((p) => p.slug), ['home', 'products', 'about', 'contact', 'privacy', 'pricing']);
     assert.equal(pages[0].sections[0].type, 'hero');
+});
+
+test('set-prices: dry run writes nothing; apply changes only prices, closings and price wording; re-run is a no-op', async () => {
+    const { setPrices } = await import('../dist/scripts/set-prices.js');
+    const { loadSeed } = await import('../dist/seeds/seed-v2.js');
+    const { projects } = await import('../dist/src/db/schema.js');
+    const { eq } = await import('drizzle-orm');
+    const seed = loadSeed();
+    const lrd = () => t.db.select().from(projects).where(eq(projects.slug, 'lead-response-desk')).then((r) => r[0]);
+    // live as it is today: no prices, and a video he uploaded in the admin
+    await t.db.update(projects).set({ pricePlans: [], demos: [{ id: 'his', title: 'His upload', source: 'url', url: 'https://youtu.be/abcdefgh', featured: true, order: 1, visible: true }] }).where(eq(projects.slug, 'lead-response-desk'));
+    const dry = await setPrices(t.db, seed);
+    assert.deepEqual(dry.changes, ['product lead-response-desk: pricePlans']);
+    assert.equal((await lrd()).pricePlans.length, 0); // dry run wrote nothing
+    const done = await setPrices(t.db, seed, { apply: true });
+    assert.deepEqual(done.changes, dry.changes);
+    const after = await lrd();
+    assert.equal(after.pricePlans[0].setup, 12999);
+    assert.equal(after.demos[0].id, 'his'); // his admin edit survives
+    assert.deepEqual((await setPrices(t.db, seed)).changes, []);
 });
 
 test('media size check + seed-production planning (no upload, no network)', async () => {
