@@ -10,7 +10,8 @@ export const pool = new Pool({
     connectionString: env.DATABASE_URL,
     max: 20, // Maximum number of connections in the pool
     idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-    connectionTimeoutMillis: 2000, // Return an error after 2 seconds if no connection
+    // 2 s by default; scripts run from India against us-east-1 set PG_CONNECT_TIMEOUT_MS (set-prices uses 20 s)
+    connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS) || 2000,
 });
 
 // Handle pool errors

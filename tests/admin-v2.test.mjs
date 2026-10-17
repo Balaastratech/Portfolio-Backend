@@ -246,28 +246,55 @@ test('v2 seed: one seed file feeds site and admin; Organizer seeded as the 7th; 
     assert.equal(pages[0].sections[0].type, 'hero');
 });
 
-test('set-prices: dry run writes nothing; apply changes only prices, closings and price wording; re-run is a no-op', async () => {
+test('geo: country from the Vercel header, never cached; missing or junk header → null', async () => {
+    const geo = async (headers) => {
+        const r = await fetch(t.baseUrl + '/api/public/geo', { headers });
+        return { cache: r.headers.get('cache-control'), body: await r.json() };
+    };
+    assert.deepEqual(await geo({ 'x-vercel-ip-country': 'IN' }), { cache: 'no-store, private', body: { country: 'IN' } });
+    assert.deepEqual((await geo({ 'x-vercel-ip-country': 'gb' })).body, { country: 'GB' });
+    assert.deepEqual(await geo({}), { cache: 'no-store, private', body: { country: null } });
+    assert.deepEqual((await geo({ 'x-vercel-ip-country': '<script>' })).body, { country: null });
+});
+
+test('set-prices: dry run writes nothing; apply moves only prices and price wording; keeps his edits; re-run is a no-op', async () => {
     const { setPrices } = await import('../dist/scripts/set-prices.js');
     const { loadSeed } = await import('../dist/seeds/seed-v2.js');
-    const { projects } = await import('../dist/src/db/schema.js');
+    const { projects, pages } = await import('../dist/src/db/schema.js');
     const { eq } = await import('drizzle-orm');
     const seed = loadSeed();
-    const lrd = () => t.db.select().from(projects).where(eq(projects.slug, 'lead-response-desk')).then((r) => r[0]);
+    const bySlug = (slug) => t.db.select().from(projects).where(eq(projects.slug, slug)).then((r) => r[0]);
+    const pricing = () => t.db.select().from(pages).where(eq(pages.slug, 'pricing')).then((r) => r[0]);
     // live as it is today: no prices, and a video he uploaded in the admin
     await t.db.update(projects).set({ pricePlans: [], demos: [{ id: 'his', title: 'His upload', source: 'url', url: 'https://youtu.be/abcdefgh', featured: true, order: 1, visible: true }] }).where(eq(projects.slug, 'lead-response-desk'));
     // offer 5 as live today: old name, old card line, a FAQ he may have edited
-    const nc = () => t.db.select().from(projects).where(eq(projects.slug, 'negotiation-copilot')).then((r) => r[0]);
-    const ncBefore = await nc();
+    const ncBefore = await bySlug('negotiation-copilot');
     await t.db.update(projects).set({ title: 'Negotiation Copilot', page: { ...ncBefore.page, cardTitle: 'Walk into every big call prepared.' }, faq: [{ q: 'His', a: 'edit' }] }).where(eq(projects.slug, 'negotiation-copilot'));
+    // Inventra as live at 21:32 on 17-10: old dollar price and three-currency closing, plus his own edit to the US terms
+    const inv = await bySlug('inventra');
+    const oldPlans = inv.pricePlans.map((pl) => pl.currency === 'USD' ? { ...pl, setup: 1450, terms: ['His US wording'] } : pl);
+    await t.db.update(projects).set({ pricePlans: oldPlans, page: { ...inv.page, closing: { ...inv.page.closing, eyebrow: 'Price · starting from ₹49,999 · £1,050 · $1,450' } } }).where(eq(projects.slug, 'inventra'));
+    // Pricing page as live at 21:32: all three currencies side by side
+    const pr = await pricing();
+    const oldText = JSON.stringify(pr.sections).replace('{₹19,999|£495|$659}', '₹19,999 · £495 · $595').replace('{₹2,499|£49|$69}', '₹2,499 · £49 · $59');
+    await t.db.update(pages).set({ sections: JSON.parse(oldText) }).where(eq(pages.slug, 'pricing'));
+
     const dry = await setPrices(t.db, seed);
-    assert.deepEqual(dry.changes, ['product lead-response-desk: pricePlans', 'product negotiation-copilot: title, page']);
-    assert.equal((await lrd()).pricePlans.length, 0); // dry run wrote nothing
+    assert.deepEqual(dry.changes, ['product lead-response-desk: pricePlans', 'product inventra: pricePlans, page', 'product negotiation-copilot: title, page', 'page pricing: sections']);
+    assert.equal((await bySlug('lead-response-desk')).pricePlans.length, 0); // dry run wrote nothing
     const done = await setPrices(t.db, seed, { apply: true });
     assert.deepEqual(done.changes, dry.changes);
-    const after = await lrd();
-    assert.equal(after.pricePlans[0].setup, 12999);
+    const after = await bySlug('lead-response-desk');
+    assert.deepEqual(after.pricePlans.filter((x) => !x.isQuote).map((x) => [x.currency, x.setup, x.monthly]), [['INR', 12999, 3999], ['GBP', 395, 99], ['USD', 529, 139]]);
     assert.equal(after.demos[0].id, 'his'); // his admin edit survives
-    const ncAfter = await nc();
+    const invAfter = await bySlug('inventra');
+    const us = invAfter.pricePlans.find((x) => x.currency === 'USD');
+    assert.deepEqual([us.setup, us.monthly, us.terms], [1399, 199, ['His US wording']]); // new dollars, his wording kept
+    assert.equal(invAfter.page.closing.eyebrow, 'Price · starting from {₹49,999|£1,050|$1,399}');
+    assert.equal(invAfter.page.closing.title, inv.page.closing.title);
+    const cards = JSON.stringify((await pricing()).sections);
+    assert.ok(cards.includes('{₹19,999|£495|$659}') && cards.includes('{₹2,499|£49|$69}') && !cards.includes('$595'));
+    const ncAfter = await bySlug('negotiation-copilot');
     assert.equal(ncAfter.title, 'Deal-Call Voice Agent');
     assert.equal(ncAfter.page.cardTitle, ncBefore.page.cardTitle);
     assert.deepEqual(ncAfter.faq, [{ q: 'His', a: 'edit' }]); // only the listed copy fields move

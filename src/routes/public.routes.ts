@@ -52,6 +52,12 @@ router.get('/process', apiRateLimiter, getProcess);
 router.get('/about', apiRateLimiter, getAbout);
 router.get('/case-studies', apiRateLimiter, getCaseStudies);
 
+// Visitor's country from Vercel's edge header, so the site shows one price (₹ / £ / $). Never cached: it is per visitor.
+router.get('/geo', (req, res) => {
+    const c = String(req.headers['x-vercel-ip-country'] ?? '').toUpperCase();
+    res.set('Cache-Control', 'no-store, private').json({ country: /^[A-Z]{2}$/.test(c) ? c : null });
+});
+
 // Contact form has stricter validation
 router.post(
     '/contact',
